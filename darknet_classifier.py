@@ -90,7 +90,7 @@ class BaseModel(nn.Module):
         return x
                                 
 class DarkNet(nn.Module):
-    def __init__(self, split_size, num_boxes, num_classes, fc_dim=4096):
+    def __init__(self, split_size=7, num_boxes=2, num_classes=20, fc_dim=4096):
         super(DarkNet, self).__init__()
         self.S = split_size
         self.B = num_boxes
@@ -115,10 +115,9 @@ class DarkNet(nn.Module):
 
         return x
 
-split_size, num_boxes, num_classes = 7, 2, 20
 
 # classifier = BaseModel(num_classes=1000)
-detector = DarkNet(split_size, num_boxes, num_classes, fc_dim=496)
+detector = DarkNet(fc_dim=496)
 # print(summary(classifier, (3,224,224)))
 print(summary(detector, (3,448,448)))
 
