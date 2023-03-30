@@ -86,27 +86,39 @@ class BaseModel(nn.Module):
         x = self.Avg(x)
         x = torch.squeeze(x)
         x = self.fc1(x)
+
+        return x
                                 
 class DarkNet(nn.Module):
-    def __init__(self):
+    def __init__(self, split_size, num_boxes, num_classes, fc_dim=4096):
         super(DarkNet, self).__init__()
+        self.S = split_size
+        self.B = num_boxes
+        self.C = num_classes
+        self.fc_dim = fc_dim
+
         layers = []
-        
         for order, conv_info in enumerate(CONV_ARCHITECTURE):
             layers += [CNNBlock(*conv_info)]
         self.conv = nn.Sequential(*layers)
-        self.fc2 = nn.Linear(7*7*1024, 4096)
-        self.fc3 = nn.Linear(4096, 30)
         
     def forward(self, x):
         x = self.conv(x)
-        x = nn.Flatten()(x)
-        # x = self.fc2(x)
-        # x = self.fc3(x)
-    
 
-classifier = BaseModel(num_classes=1000)
-detector = DarkNet()
-print(summary(classifier, (3,224,224)))
+        channel_dim = x.size(1) # 1024
+
+        x = nn.Flatten()(x)
+        x = nn.Linear(self.S*self.S*channel_dim, self.fc_dim)(x)
+        x = nn.Dropout(0.5)(x)
+        x = nn.LeakyReLU(0.1)(x)
+        x = nn.Linear(self.fc_dim, self.S*self.S*(self.C + self.B*5))(x)
+
+        return x
+
+split_size, num_boxes, num_classes = 7, 2, 20
+
+# classifier = BaseModel(num_classes=1000)
+detector = DarkNet(split_size, num_boxes, num_classes, fc_dim=496)
+# print(summary(classifier, (3,224,224)))
 print(summary(detector, (3,448,448)))
 
