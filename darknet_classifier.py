@@ -90,11 +90,12 @@ class BaseModel(nn.Module):
         return x
                                 
 class DarkNet(nn.Module):
-    def __init__(self, split_size=7, num_boxes=2, num_classes=20, fc_dim=4096):
+    def __init__(self, split_size=7, num_boxes=2, num_classes=20, channel_dim=1024, fc_dim=4096):
         super(DarkNet, self).__init__()
         self.S = split_size
         self.B = num_boxes
         self.C = num_classes
+        self.channel_dim = channel_dim
         self.fc_dim = fc_dim
 
         layers = []
@@ -102,16 +103,17 @@ class DarkNet(nn.Module):
             layers += [CNNBlock(*conv_info)]
         self.conv = nn.Sequential(*layers)
         
+        layers = []
+        layers += [nn.Flatten(),
+                  nn.Linear(self.S*self.S*self.channel_dim, self.fc_dim),
+                  nn.Dropout(0.5),
+                  nn.LeakyReLU(0.1),
+                  nn.Linear(self.fc_dim, self.S*self.S*(self.C + self.B*5))]
+        self.fc = nn.Sequential(*layers)
+        
     def forward(self, x):
         x = self.conv(x)
-
-        channel_dim = x.size(1) # 1024
-
-        x = nn.Flatten()(x)
-        x = nn.Linear(self.S*self.S*channel_dim, self.fc_dim)(x)
-        x = nn.Dropout(0.5)(x)
-        x = nn.LeakyReLU(0.1)(x)
-        x = nn.Linear(self.fc_dim, self.S*self.S*(self.C + self.B*5))(x)
+        x = self.fc(x)
 
         return x
 
