@@ -135,39 +135,32 @@ class YOLOLoss(nn.Module):
 
         return loss
         
+if __name__ == '__main__':
 
-        
+    import numpy as np
+    # a = torch.tensor(np.random.randint(1, 10, (1, 7, 7, 30)))
+    # b = torch.tensor(np.random.randint(1, 10, (1, 7, 7, 30)))
+    # c = torch.tensor(np.random.randint(1, 10, (1, 7, 7, 30)))
+    # bbox1 = a[..., 21:25]
+    # bbox2 = b[..., 21:25]
+    # bbox3 = c[..., 21:25]
 
-        
+    # iou1 = IoU(bbox1, bbox2)
+    # iou2 = IoU(bbox1, bbox3)
 
+    # ious = torch.cat([iou1.unsqueeze(0), iou2.unsqueeze(0)], dim=0)
 
+    # val, idx = torch.max(ious, dim=0)
+    # print(val.shape)
+    # print(idx.shape)
+    # print(bbox1[0])
+    # bbox1[...,2] = bbox1[...,0] + bbox1[...,2]
+    # print(bbox1[0])
 
+    # print(bbox1.shape, bbox2.shape)
+    # ops.box_iou
 
+    a = list(range(0, 10))
+    b = list(range(10, 20))
 
-import numpy as np
-# a = torch.tensor(np.random.randint(1, 10, (1, 7, 7, 30)))
-# b = torch.tensor(np.random.randint(1, 10, (1, 7, 7, 30)))
-# c = torch.tensor(np.random.randint(1, 10, (1, 7, 7, 30)))
-# bbox1 = a[..., 21:25]
-# bbox2 = b[..., 21:25]
-# bbox3 = c[..., 21:25]
-
-# iou1 = IoU(bbox1, bbox2)
-# iou2 = IoU(bbox1, bbox3)
-
-# ious = torch.cat([iou1.unsqueeze(0), iou2.unsqueeze(0)], dim=0)
-
-# val, idx = torch.max(ious, dim=0)
-# print(val.shape)
-# print(idx.shape)
-# print(bbox1[0])
-# bbox1[...,2] = bbox1[...,0] + bbox1[...,2]
-# print(bbox1[0])
-
-# print(bbox1.shape, bbox2.shape)
-# ops.box_iou
-
-a = list(range(0, 10))
-b = list(range(10, 20))
-
-print(a[:2:10])
+    print(a[:2:10])

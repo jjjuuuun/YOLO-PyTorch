@@ -117,9 +117,9 @@ class DarkNet(nn.Module):
 
         return x
 
-
-# classifier = BaseModel(num_classes=1000)
-detector = DarkNet(fc_dim=496)
-# print(summary(classifier, (3,224,224)))
-print(summary(detector, (3,448,448)))
+if __name__ == '__main__':
+    # classifier = BaseModel(num_classes=1000)
+    detector = DarkNet(fc_dim=496)
+    # print(summary(classifier, (3,224,224)))
+    print(summary(detector, (3,448,448)))
 
