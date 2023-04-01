@@ -58,45 +58,93 @@ def IoU(bbox1, bbox2):
 
     return intersection / (bbox1_area + bbox2_area - intersection + 1e-6)
 
-def mAP(detections, ground_truths, C, iou_threshold=0.5):
+def mAP(pred_boxes, true_boxes, C, iou_threshold=0.5):
     ap = [] # Average Precision
     epsilon = 1e-6
 
     for c in range(C):
-        dects = [d for d in detections if d[1] == c]
-        gts = [g for g in detections if g[1] == c]
+        detections = [detection for detection in pred_boxes if detection[1] == c]
+        ground_truths = [true_boxe for true_boxe in true_boxes if true_boxe[1] == c]
 
-        # Recall의 분모
-        len_gts = len(gts)
+        # 각 image에서 class가 c인 ground truth box 수
+        # train_idx = 0이고 train_idx=0인 bbox가 2개라면 n_box[0] = 2가 된다.
+        # n_bbox = {0:2, 1:5}
+        n_bbox = Counter([gt[0] for gt in ground_truths])
+
+        # n_bbox = {0:torch.tensor[0,0], 1:torch.tensor[0,0,0,0,0]}
+        for key, val in n_bbox.items():
+            n_bbox[key] = torch.zeros(val)
 
         # Confidence score에 따라 내림차순 정렬
-        dects = sorted(dects, key=lambda conf : conf[2], reverse=True)
+        detections = sorted(detections, key=lambda conf : conf[2], reverse=True)
+        TP = torch.zeros(len(detections))
+        FP = torch.zeros(len(detections))
+        total_true_bbox = len(ground_truths) # batch_size * S * S에서 class가 c인 bbox 개수
 
-        TP = np.zeros(len(dects))
-        FP = np.zeros(len(dects))
-        
-        # 각 image에서 class가 c인 ground truth box 수
-        n_box = Counter(x[0] for x in gts)
-        for key, val in n_box.items():
-            n_box = torch.zeros(val)
+        if total_true_bbox == 0:
+            continue
 
-        # 
-        for i in range(len(dects)):
-            gt = [gt for gt in gts if gt[0] == dects[i][0]]
+        for detection_idx, detection in enumerate(detections):
+            # 현재 박스(detection)와 같은 이미지에 있는 ground truths bbox들
+            ground_truths_img = [
+                bbox for bbox in ground_truths if bbox[0] == detection[0]
+            ]
+            
+            n_gts = len(ground_truths_img)
+
+            # 현재 박스(detection)와 같은 이미지에 있는 ground truths bbox들 중 가장 큰 iou를 갖는 bbox
+            best_iou = 0
+            for idx, gt in enumerate(ground_truths_img):
+                iou = IoU(
+                    torch.tensor(detection[3:]),
+                    torch.tensor(gt[3:])
+                )
+
+                if iou > best_iou:
+                    best_iou = iou
+                    best_gt_idx = idx
+            
+            # IoU가 iou_threshold보다 큰 경우
+            if best_iou > iou_threshold:
+                # 내림차순 정렬 했으므로 처음 나온 것은 TP
+                if n_bbox[detection[0]][best_gt_idx] == 0:
+                    TP[detection_idx] = 1
+                    n_bbox[detection[0]][best_gt_idx] = 1
+                # 같은 것을 한 번 더 예측한 것은 잘 못 예측한 것 (예측은 한 번 만 해야하므로)
+                else:
+                    FP[detection_idx] = 1
+            # IoU가 iou_threshold보다 작은 경우
+            else:
+                FP[detection_idx] = 1
+
+        TP_cumsum = torch.cumsum(TP, dim = 0)
+        FP_cumsum = torch.cumsum(FP, dim = 0)
+        recall = TP_cumsum / (total_true_bbox + epsilon)
+        recall = torch.cat((torch.tensor([0]), recall))
+        precision = TP_cumsum / (TP_cumsum + FP_cumsum + epsilon)
+        precision = torch.cat((torch.tensor([1]), precision))
+
+        # torch.trapz for numerical integration
+        # 넓이 구하기
+        ap.append(torch.trapz(precision, recall))
+
+    return sum(ap) / len(ap)
 
 
 def cell_to_boxes(output, S):
     convert_output = output.reshape(output.shape[0], S*S, -1)
     convert_output[..., 0] = convert_output[..., 0].long()
-    all_bboxes = []
+    # all_bboxes = []
 
+    bboxes = []
+    img_idx = 0
     for batch in range(output.shape[0]):
-        bboxes = []
-
         for idx in range(S*S):
-            bboxes.append([x.item() for x in convert_output[batch, idx, :]])
-        all_bboxes.append(bboxes)
-    return all_bboxes
+            bboxes.append([img_idx]+[x.item() for x in convert_output[batch, idx, :]])
+        img_idx += 1
+        # all_bboxes.append(bboxes)
+    # return all_bboxes
+    return bboxes
 
 def choice_boxes(img, output, S, C, B, count='1ofB', scale=False):
     batch_size = output.shape[0]
@@ -112,7 +160,6 @@ def choice_boxes(img, output, S, C, B, count='1ofB', scale=False):
             scores = torch.cat(
                 (output[..., 20].unsqueeze(0), output[..., 25].unsqueeze(0)), dim=0
             )
-
             bbox1 = output[..., 21:25]
             bbox2 = output[..., 26:30]
             score, idx = torch.max(scores, dim=0)
@@ -194,3 +241,12 @@ def draw_image(img, target, S, B, count):
                     draw.text((x, y), name, fill=(255,255,255,0), font=font, align='center')
 
     return img    
+
+if __name__ == '__main__':
+    a = torch.randn(3, 7, 7, 6)
+    b = torch.randn(3, 7, 7, 6)
+    a = cell_to_boxes(a, 7)
+    b = cell_to_boxes(b, 7)
+    print(len(b)) # 49 x 3 = 147
+    print(len(b[0])) # 7 >> [image idx, class, score, x, y, w, h]
+    print(mAP(a, b, 20, iou_threshold=0.5))
