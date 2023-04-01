@@ -113,12 +113,9 @@ for epoch in range(EPOCHS):
         target_bbox = choice_boxes(train_img, train_target, S, C, B=1, count='1of1', scale=False)
         
         pred_bbox = cell_to_boxes(pred_bbox, S)
-        # dects = [d for d in detections if d[1] == c]
-        for d in pred_bbox[0]:
-            print(d[1])
-        # print(len(pred_bbox), len(pred_bbox[0]))
-        # target_bbox = cell_to_boxes(target_bbox, S)
-        # print(len(target_bbox), len(target_bbox[0]))
+        target_bbox = cell_to_boxes(target_bbox, S)
+        train_mAP = mAP(pred_bbox, target_bbox, C, iou_threshold=0.5)
+        print(f'{train_mAP:.4f}')
 
         break
     break
