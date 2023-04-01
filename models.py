@@ -90,11 +90,11 @@ class BaseModel(nn.Module):
         return x
                                 
 class DarkNet(nn.Module):
-    def __init__(self, split_size=7, num_boxes=2, num_classes=20, channel_dim=1024, fc_dim=4096):
+    def __init__(self, split_size=7, num_classes=20, num_boxes=2, channel_dim=1024, fc_dim=4096):
         super(DarkNet, self).__init__()
         self.S = split_size
-        self.B = num_boxes
         self.C = num_classes
+        self.B = num_boxes
         self.channel_dim = channel_dim
         self.fc_dim = fc_dim
 
