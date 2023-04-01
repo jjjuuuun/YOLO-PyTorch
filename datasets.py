@@ -33,18 +33,24 @@ class VOCDataset(Dataset):
         image = Image.open(img_path)
         boxes = torch.tensor(boxes)
 
-        if self.transofrm:
-            image, boxes = self.transform(image,boxes)
+        if self.transform:
+            image = self.transform(image)
         
         target = torch.zeros((self.S, self.S, self.C + 5*self.B))
         for box in boxes:
+            # 이미지 전체 크기 S를 기준 x, y, w, h
+            # 0 <= x, y, w, h <= 1
             label, x, y, w, h = box.tolist()
             label = int(label)
 
             # Grid Cell의 행(i)과 열(j)
             i, j = int(self.S*y), int(self.S*x)
+            # Cell 안에서의 x, y 위치(0 <=)
+            x, y = self.S*x - j, self.S*y-i
+            # Cell의 크기 S를 기준으로 width(w)와 height(h)의 길이
+            w, h = self.S*w, self.S*h
 
-            if target[i,j,20] == 0:
+            if target[i, j, 20] == 0:
                 target[i, j, 20] = 1
                 
                 coordinate = torch.tensor([x, y, w, h])
