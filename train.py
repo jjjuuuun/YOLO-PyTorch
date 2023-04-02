@@ -39,13 +39,14 @@ LEARNING_RATE = 2e-5
 WEIGHT_DECAY = 0
 EPOCHS = 1
 TRAIN_VAL_SPLIT = 0.8
-USE_WANDB = False
+USE_WANDB = True
+WANDB_PROJECT = 'YOLO-v1'
+WANDB_EXPERIMENT_NAME = 'test'
 
 
 if USE_WANDB:
     print("Using wandb ...")
-    # wandb.init(project=opt.wandb_project, entity=opt.wandb_entity)
-    # wandb.config.update(opt)
+    wandb.init(project=WANDB_PROJECT, name=WANDB_EXPERIMENT_NAME, config=None)
 
 print("Fixing Seed")
 torch_seed(RANDOM_SEED)
@@ -93,6 +94,7 @@ print("Starting training ...")
 for epoch in range(EPOCHS):
     start_time = time.time()
     train_epoch_loss = 0
+    train_mAP = 0
     train_bboxes = []
     train_bbox = []
 
@@ -115,57 +117,65 @@ for epoch in range(EPOCHS):
         pred_bbox = cell_to_boxes(pred_bbox, S)
         target_bbox = cell_to_boxes(target_bbox, S)
         train_mAP = mAP(pred_bbox, target_bbox, C, iou_threshold=0.5)
-        print(f'{train_mAP:.4f}')
 
-        break
-    break
-    #     # ======================================== #
-    #     # Bounding Box가 어떻게 학습되고 있는지 확인 #
-    #     pred_bbox = choice_boxes(train_img, train_pred, S, C, B, count='BofB', scale=True)
-    #     pil_image = draw_image(train_img[0], pred_bbox[0], S, B, count='BofB')
-    #     image = wandb.Image(pil_image, caption=f"Training Bounding Boxes {epoch}")
-    #     train_bboxes.append(image)
+        # ======================================== #
+        # Bounding Box가 어떻게 학습되고 있는지 확인 #
+        pred_bbox = choice_boxes(train_img, train_pred, S, C, B, count='BofB', scale=True)
+        pil_image = draw_image(train_img[0], pred_bbox[0], S, B, count='BofB')
+        image = wandb.Image(pil_image, caption=f"Training Bounding Boxes {epoch}")
+        train_bboxes.append(image)
 
-    #     pred_bbox = choice_boxes(train_img, train_pred, S, C, B, count='1ofB', scale=True)
-    #     pil_image = draw_image(train_img[0], pred_bbox[0], S, B=1, count='BofB')
-    #     image = wandb.Image(pil_image, caption=f"Choice Bounding Box {epoch}")
-    #     train_bbox.append(image)
-    #     # ======================================== #
+        pred_bbox = choice_boxes(train_img, train_pred, S, C, B, count='1ofB', scale=True)
+        pil_image = draw_image(train_img[0], pred_bbox[0], S, B=1, count='BofB')
+        image = wandb.Image(pil_image, caption=f"Choice Bounding Box {epoch}")
+        train_bbox.append(image)
+        # ======================================== #
 
-    # train_epoch_loss = train_epoch_loss / len(train_iter)
-    # pred_bbox = choice_boxes(train_img, train_pred, S, C, B, count='1of1', scale=False)
+    train_epoch_loss = train_epoch_loss / len(train_iter)
+    train_mAP = train_mAP / len(train_iter)
     
-    # # Validation
-    # with torch.no_grad():
-    #     val_epoch_loss = 0
-    #     model.eval()
-    #     for val_img, val_target in val_iter:
-    #         val_img, val_target = val_img.to(device), val_target.to(device)
+    # Validation
+    with torch.no_grad():
+        val_epoch_loss = 0
+        val_mAP = 0
+        val_bboxes = []
+        val_bbox = []
+        model.eval()
+        for val_img, val_target in val_iter:
+            val_img, val_target = val_img.to(device), val_target.to(device)
 
-    #         val_pred = model(val_img)
-    #         val_iter_loss = criterion(val_pred, val_target).detach()
+            val_pred = model(val_img)
+            val_iter_loss = criterion(val_pred, val_target).detach()
 
-    #         val_epoch_loss += val_iter_loss
-    #     model.train()
+            val_epoch_loss += val_iter_loss
 
-    # print('time >> {:.4f}\tepoch >> {:04d}\ttrain_loss >> {:.4f}\\tval_loss >> {:.4f}'
-    #       .format(time.time()-start_time, epoch, train_epoch_loss, val_epoch_loss))
+            val_pred_bbox = choice_boxes(train_img, train_pred, S, C, B, count='1ofB', scale=False)
+            val_target_bbox = choice_boxes(train_img, train_target, S, C, B=1, count='1of1', scale=False)
+            
+            val_pred_bbox = cell_to_boxes(val_pred_bbox, S)
+            val_target_bbox = cell_to_boxes(val_target_bbox, S)
+            val_mAP = mAP(val_pred_bbox, val_target_bbox, C, iou_threshold=0.5)
+        model.train()
     
-    # if (epoch+1) % 5 == 0:
-    #     torch.save({
-    #         'epoch': epoch,
-    #         'model_state_dict': model.state_dict(),
-    #         'optimizer_state_dict': optimizer.state_dict(),
-    #         }, log_dir / f'epoch({epoch})_loss({train_epoch_loss:.3f}).pt')
-    # if USE_WANDB:
-    #     wandb.log({'train_loss': train_epoch_loss,
-    #                'val_loss': val_epoch_loss,
-    #                'train_bboxes': train_bboxes,
-    #                'train_bbox': train_bbox})
+    train_val_loss = val_epoch_loss / len(val_iter)
+    val_mAP = val_mAP / len(val_iter)
 
-    # conv_targets = convert_scale(target, imgs, S)
+    print('time >> {:.4f}\tepoch >> {:04d}\ttrain_loss >> {:.4f}\ttrain_mAP>> {:04f}\tval_loss >> {:.4f}\tval_mAP>> {:04f}'
+          .format(time.time()-start_time, epoch, train_epoch_loss, train_mAP, val_epoch_loss, val_mAP))
+    
+    if (epoch+1) % 5 == 0:
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            }, log_dir / f'epoch({epoch})_loss({train_epoch_loss:.3f}).pt')
+        
+    if USE_WANDB:
+        wandb.log({'train_loss': train_epoch_loss,
+                   'val_loss': val_epoch_loss,
+                   'train_mAP': train_mAP,
+                   'val_mAP': val_mAP,
+                   'train_bboxes': train_bboxes,
+                   'train_bbox': train_bbox})
 
-    # for idx, (img, conv_target) in enumerate(zip(imgs, conv_targets)):
-    #     img = plot_image(img, conv_target, S)
-    #     img.save(f'./test_images/output_{idx}.png', 'png')
 
