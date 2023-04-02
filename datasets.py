@@ -4,6 +4,7 @@ from pathlib import Path
 import os
 import pandas as pd
 from PIL import Image
+from tqdm import tqdm
 
 class VOCDataset(Dataset):
     def __init__(self, csv_file, img_dir, label_dir, S=7, B=2, C=20, transform=None):
@@ -14,24 +15,39 @@ class VOCDataset(Dataset):
         self.S = S
         self.B = B
         self.C = C
+        
+        self.boxes = []
+        self.images = []
+        for image, text in tqdm(zip(self.annotations['image'], self.annotations['text'])):
+            label_path = os.path.join(self.label_dir, text)
+            img_path = os.path.join(self.img_dir, image)
+            box = []
+            with open(label_path) as f:
+                for line in f.readlines():
+                    label, x, y, w, h = [float(x) if float(x) != int(float(x)) else int(x)
+                                        for x in line.replace('\n', '').split()]
+                    box.append([label, x, y, w, h])
+                self.boxes.append(box)
+            self.images.append(Image.open(img_path))
 
+        
 
     def __len__(self):
         return len(self.annotations)
 
 
     def __getitem__(self, index):
-        label_path = os.path.join(self.label_dir, self.annotations.iloc[index, 1])
-        boxes = []
-        with open(label_path) as f:
-            for line in f.readlines():
-                label, x, y, w, h = [float(x) if float(x) != int(float(x)) else int(x)
-                                     for x in line.replace('\n', '').split()]
-                boxes.append([label, x, y, w, h])
+        # label_path = os.path.join(self.label_dir, self.annotations.iloc[index, 1])
+        # boxes = []
+        # with open(label_path) as f:
+        #     for line in f.readlines():
+        #         label, x, y, w, h = [float(x) if float(x) != int(float(x)) else int(x)
+        #                              for x in line.replace('\n', '').split()]
+        #         boxes.append([label, x, y, w, h])
 
-        img_path = os.path.join(self.img_dir, self.annotations.iloc[index, 0])
-        image = Image.open(img_path)
-        boxes = torch.tensor(boxes)
+        # img_path = os.path.join(self.img_dir, self.annotations.iloc[index, 0])
+        image = self.images[index]
+        boxes = torch.tensor(self.boxes[index])
 
         if self.transform:
             image = self.transform(image)
@@ -62,8 +78,18 @@ class VOCDataset(Dataset):
 
 
 if __name__ == '__main__':
-    a = torch.randn(1,5)
+    # a = torch.randn(1,5)
 
-    b, c, d, e, f = a[0].tolist()
+    # b, c, d, e, f = a[0].tolist()
 
-    print(b, c, d, e, f)
+    # print(b, c, d, e, f)
+
+    base_dir = Path.cwd()
+    data_dir = base_dir/'datasets'
+    csv_file = data_dir / '100examples.csv'
+    img_dir = data_dir / 'images'
+    label_dir = data_dir / 'labels'
+    log_dir = base_dir / 'checkpoints'
+
+    a = VOCDataset(csv_file, img_dir, label_dir, S=7, B=1, C=20, transform=None)
+    print(next(iter(a)))

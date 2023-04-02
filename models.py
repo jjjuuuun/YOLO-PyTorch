@@ -1,7 +1,5 @@
 import torch
 import torch.nn as nn
-from timm import list_models
-from timm import create_model
 from torchsummary.torchsummary import summary
 
 # list_models('*', pretrained=True)
