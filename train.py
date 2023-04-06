@@ -16,6 +16,7 @@ import wandb
 import torch.optim as optim
 import time
 from pathlib import Path
+import cv2
 
 def torch_seed(random_seed):
     torch.manual_seed(random_seed)
@@ -31,17 +32,19 @@ def torch_seed(random_seed):
 
 # CONSTANT VALUE
 RANDOM_SEED = 223
-BATCH_SIZE = 3
+BATCH_SIZE = 10
 S = 7
 C = 20
 B = 2
 LEARNING_RATE = 2e-5
 WEIGHT_DECAY = 0
-EPOCHS = 3
+EPOCHS = 10
 TRAIN_VAL_SPLIT = 0.8
 USE_WANDB = True
 WANDB_PROJECT = 'YOLO-v1'
 WANDB_EXPERIMENT_NAME = 'test'
+WIDTH = 448
+HEIGHT = 448
 
 
 if USE_WANDB:
@@ -111,24 +114,24 @@ for epoch in range(EPOCHS):
         
         train_epoch_loss += train_iter_loss
 
-        pred_bbox = choice_boxes(train_img, train_pred, S, C, B, count='1ofB', scale=False)
-        target_bbox = choice_boxes(train_img, train_target, S, C, B=1, count='1of1', scale=False)
+        pred_bbox = choice_boxes(train_pred.clone().detach(), S, C, B, WIDTH, HEIGHT, count='1ofB', scale=False)
+        target_bbox = choice_boxes(train_target.clone().detach(), S, C, B=1, width=WIDTH, height=HEIGHT, count='1of1', scale=False)
         
         pred_bbox = cell_to_boxes(pred_bbox, S)
         target_bbox = cell_to_boxes(target_bbox, S)
-        train_mAP = mAP(pred_bbox, target_bbox, C, iou_threshold=0.5)
+        train_mAP += mAP(pred_bbox, target_bbox, C, iou_threshold=0.5)
 
         # ======================================== #
         # Bounding Box가 어떻게 학습되고 있는지 확인 #
-        pred_bbox = choice_boxes(train_img, train_pred, S, C, B, count='BofB', scale=True)
-        pil_image = draw_image(train_img[0], pred_bbox[0], S, B, count='BofB')
-        image = wandb.Image(pil_image, caption=f"Training Bounding Boxes {epoch}")
-        train_bboxes.append(image)
+        pred_bbox1 = choice_boxes(train_pred.clone().detach(), S, C, B, WIDTH, HEIGHT, count='BofB', scale=True)
+        pil_image1 = draw_image(train_img[0], pred_bbox1[0], S, B, count='BofB')
+        image1 = wandb.Image(pil_image1, caption=f"Epoch-{epoch} : Training Bounding Boxes")
+        train_bboxes.append(image1)
 
-        pred_bbox = choice_boxes(train_img, train_pred, S, C, B, count='1ofB', scale=True)
-        pil_image = draw_image(train_img[0], pred_bbox[0], S, B=1, count='BofB')
-        image = wandb.Image(pil_image, caption=f"Choice Bounding Box {epoch}")
-        train_bbox.append(image)
+        pred_bbox2 = choice_boxes(train_pred.clone().detach(), S, C, B, WIDTH, HEIGHT, count='1ofB', scale=True)
+        pil_image2 = draw_image(train_img[0], pred_bbox2[0], S, B=1, count='BofB')
+        image2 = wandb.Image(pil_image2, caption=f"Epoch-{epoch} : Choice Bounding Box")
+        train_bbox.append(image2)
         # ======================================== #
 
     train_epoch_loss = train_epoch_loss / len(train_iter)
@@ -148,13 +151,12 @@ for epoch in range(EPOCHS):
             val_iter_loss = criterion(val_pred, val_target).detach()
 
             val_epoch_loss += val_iter_loss
-
-            val_pred_bbox = choice_boxes(train_img, train_pred, S, C, B, count='1ofB', scale=False)
-            val_target_bbox = choice_boxes(train_img, train_target, S, C, B=1, count='1of1', scale=False)
+            val_pred_bbox = choice_boxes(val_pred.clone().detach(), S, C, B, WIDTH, HEIGHT, count='1ofB', scale=False)
+            val_target_bbox = choice_boxes(val_target.clone().detach(), S, C, B=1, width=WIDTH, height=HEIGHT, count='1of1', scale=False)
             
             val_pred_bbox = cell_to_boxes(val_pred_bbox, S)
             val_target_bbox = cell_to_boxes(val_target_bbox, S)
-            val_mAP = mAP(val_pred_bbox, val_target_bbox, C, iou_threshold=0.5)
+            val_mAP += mAP(val_pred_bbox, val_target_bbox, C, iou_threshold=0.5)
         model.train()
     
     train_val_loss = val_epoch_loss / len(val_iter)

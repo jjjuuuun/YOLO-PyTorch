@@ -5,6 +5,7 @@ import matplotlib.patches as patches
 from torchvision.transforms.functional import to_pil_image
 from PIL import Image, ImageDraw, ImageFont
 from collections import Counter
+import cv2
 
 CLASSES = [
     "aeroplane",
@@ -146,14 +147,14 @@ def cell_to_boxes(output, S):
     # return all_bboxes
     return bboxes
 
-def choice_boxes(img, output, S, C, B, count='1ofB', scale=False):
+def choice_boxes(output, S, C, B, width, height, count='1ofB', scale=False):
     batch_size = output.shape[0]
     output = output.reshape(batch_size, S, S, C+5*B)
     label = output[..., :20].argmax(-1).unsqueeze(-1)
     if count == 'BofB':
         if scale:
-            output[...,21:25] = convert_scale(output[...,21:25], img)
-            output[...,26:30] = convert_scale(output[...,26:30], img)
+            output[...,21:25] = convert_scale(output[...,21:25], width, height)
+            output[...,26:30] = convert_scale(output[...,26:30], width, height)
         return torch.cat((label, output[...,20:]), dim=-1)
     else:
         if count == '1ofB':
@@ -170,12 +171,12 @@ def choice_boxes(img, output, S, C, B, count='1ofB', scale=False):
             bbox = output[..., 21:25]
 
         if scale:
-            bbox = convert_scale(bbox, img)
+            bbox = convert_scale(bbox, width, height)
 
         return torch.cat((label, score, bbox), dim = -1)
 
 
-def convert_scale(bbox, img):
+def convert_scale(bbox, width, height):
     """bounding box의 scale을 이미지에 맞게 조정
 
     Args:
@@ -184,7 +185,7 @@ def convert_scale(bbox, img):
         S (_type_): 7
     """
     batch_size, S, _, vec_length = bbox.shape
-    _, _, width, height = img.shape
+    # _, _, width, height = img.shape
 
     cell_indices = torch.arange(S).repeat(batch_size, S, 1).unsqueeze(-1)
     x = 1 / S * (bbox[..., :1] + cell_indices)
@@ -198,6 +199,7 @@ def convert_scale(bbox, img):
     bboxes[...,1] = (bboxes[...,1] - bboxes[...,3] / 2) * height
     bboxes[...,2] = bboxes[...,2] * width
     bboxes[...,3] = bboxes[...,3] * height
+
 
     return bboxes
 
